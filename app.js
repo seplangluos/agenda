@@ -25,6 +25,10 @@ let usuarioLogado = null;
 let roleLogado = null;    
 const diasNomes = {1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta'};
 
+// Variáveis para a tela de contribuintes
+let listaContribuintesGlobal = [];
+let ordemNomeAscendente = true;
+
 // ==========================================
 // 2. NAVEGAÇÃO E MODAIS
 // ==========================================
@@ -50,11 +54,12 @@ function logout() {
 async function cadastrarContribuinte() {
     const nome = document.getElementById('cad-nome').value;
     const cpf = document.getElementById('cad-cpf').value;
+    const telefone = document.getElementById('cad-telefone') ? document.getElementById('cad-telefone').value : '';
     const email = document.getElementById('cad-email').value;
     const senha = document.getElementById('cad-senha').value;
     try {
         const cred = await auth.createUserWithEmailAndPassword(email, senha);
-        await dbAgenda.ref('usuarios/' + cred.user.uid).set({ nome, cpf, email, tipo: 'contribuinte' });
+        await dbAgenda.ref('usuarios/' + cred.user.uid).set({ nome, cpf, telefone, email, tipo: 'contribuinte' });
         await dbAgenda.ref('cpf_emails/' + cpf.replace(/\D/g, '')).set({ email });
         alert("Cadastro realizado!");
         nav('screen-login-contribuinte');
@@ -123,7 +128,7 @@ async function processarListaProcessos(stringProcessos) {
 
 async function buscarHorariosLivres(servicoId, dataStr, selectId) {
     const select = document.getElementById(selectId);
-    select.innerHTML = "<option value=''>Carregando...</option>";
+    select.innerHTML = "<option value=''>Carregando horários...</option>";
     if (!servicoId || !dataStr) return select.innerHTML = "<option value=''>Preencha serviço e data antes</option>";
 
     try {
@@ -132,7 +137,9 @@ async function buscarHorariosLivres(servicoId, dataStr, selectId) {
 
         const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataStr).once('value');
         const ocupados = [];
-        snapAgend.forEach(child => { if (child.val().servico === servicoId) ocupados.push(child.val().horario); });
+        if (snapAgend.exists()) {
+            snapAgend.forEach(child => { if (child.val().servico === servicoId) ocupados.push(child.val().horario); });
+        }
 
         select.innerHTML = "<option value=''>Selecione um horário...</option>";
         let temLivre = false;
@@ -147,7 +154,7 @@ async function buscarHorariosLivres(servicoId, dataStr, selectId) {
             });
         }
         if (!temLivre) select.innerHTML = "<option value=''>Nenhum horário disponível</option>";
-    } catch (e) { select.innerHTML = "<option value=''>Erro</option>"; }
+    } catch (e) { select.innerHTML = "<option value=''>Erro ao carregar horários</option>"; }
 }
 
 function obterDataAmanhaString() {
@@ -159,32 +166,19 @@ function obterDataAmanhaString() {
     return `${ano}-${mes}-${dia}`;
 }
 
-function checarDataFutura(dataInputString) {
-    if(!dataInputString) return false;
-    const partes = dataInputString.split('-');
-    const dataSelecionada = new Date(partes[0], partes[1] - 1, partes[2]);
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    return dataSelecionada > hoje; 
-}
-
 // ==========================================
 // 5. PAINEL CONTRIBUINTE
 // ==========================================
-let configDiasAtual_Contribuinte = {};
-
 async function abrirNovoAgendamento() {
     const area = document.getElementById('area-contribuinte-conteudo');
     area.innerHTML = `<h3>Novo Agendamento</h3><p>Carregando...</p>`;
     
     const snap = await dbAgenda.ref('servicos').once('value');
-    let selectHTML = `<select id="novo-agend-servico" onchange="atualizarDiasContribuinte()"><option value="">Selecione um Serviço...</option>`;
+    let selectHTML = `<select id="novo-agend-servico" onchange="aoMudarServicoContribuinte()"><option value="">Selecione um Serviço...</option>`;
     if (snap.exists()) {
         snap.forEach(child => { selectHTML += `<option value="${child.key}">${child.val().nome}</option>`; });
     }
     selectHTML += `</select>`;
-
-    const dataMinimaStr = obterDataAmanhaString();
 
     area.innerHTML = `
         <h3>Novo Agendamento</h3>
@@ -194,12 +188,15 @@ async function abrirNovoAgendamento() {
             <small id="info-dias-servico" style="color:var(--primary); font-weight:bold; margin-top:5px;"></small>
         </div>
         <div class="form-group">
-            <label>2. Data (Apenas a partir de amanhã):</label>
-            <input type="date" id="novo-agend-data" min="${dataMinimaStr}" onchange="validarDataContribuinte()">
+            <label>2. Escolha a Data Disponível:</label>
+            <div id="grid-datas-contribuinte" class="dates-selector-grid">
+                <p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>
+            </div>
+            <input type="hidden" id="novo-agend-data">
         </div>
         <div class="form-group">
             <label>3. Horário Disponível:</label>
-            <select id="novo-agend-horario"><option>Preencha serviço e data antes</option></select>
+            <select id="novo-agend-horario"><option value="">Selecione uma data acima</option></select>
         </div>
         <div class="form-group">
             <label>4. Nº do(s) Processo(s) (separados por vírgula):</label>
@@ -209,40 +206,98 @@ async function abrirNovoAgendamento() {
     `;
 }
 
-async function atualizarDiasContribuinte() {
+async function aoMudarServicoContribuinte() {
     const sId = document.getElementById('novo-agend-servico').value;
     const info = document.getElementById('info-dias-servico');
-    if(!sId) { info.innerText = ""; return; }
+    const grid = document.getElementById('grid-datas-contribuinte');
+    document.getElementById('novo-agend-data').value = '';
+    document.getElementById('novo-agend-horario').innerHTML = "<option value=''>Selecione uma data acima</option>";
 
-    const snap = await dbAgenda.ref('servicos/' + sId + '/config/dias').once('value');
-    configDiasAtual_Contribuinte = snap.val() || {};
+    if(!sId) { 
+        info.innerText = ""; 
+        grid.innerHTML = `<p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>`;
+        return; 
+    }
+
+    const snap = await dbAgenda.ref('servicos/' + sId).once('value');
+    const servData = snap.val() || {};
+    const configDias = (servData.config && servData.config.dias) || {};
     
-    const ativos = Object.keys(configDiasAtual_Contribuinte).filter(k => configDiasAtual_Contribuinte[k]).map(k => diasNomes[k]);
+    const ativos = Object.keys(configDias).filter(k => configDias[k]).map(k => diasNomes[k]);
     info.innerText = ativos.length ? "Dias de atendimento: " + ativos.join(', ') : "Serviço sem dias configurados.";
-    if(document.getElementById('novo-agend-data').value) validarDataContribuinte();
+
+    await gerarGridDatasDisponiveis(sId, 'grid-datas-contribuinte', 'novo-agend-data', 'novo-agend-horario');
 }
 
-function validarDataContribuinte() {
-    const dataInput = document.getElementById('novo-agend-data').value;
-    if(!dataInput) return;
-    
-    if(!checarDataFutura(dataInput)) {
-        alert("Não é possível agendar para hoje ou datas passadas. Escolha a partir de amanhã.");
-        document.getElementById('novo-agend-data').value = '';
-        document.getElementById('novo-agend-horario').innerHTML = "<option value=''>Selecione uma data válida</option>";
-        return;
+async function gerarGridDatasDisponiveis(servicoId, gridContainerId, inputDataId, selectHorarioId) {
+    const container = document.getElementById(gridContainerId);
+    container.innerHTML = "Carregando datas disponíveis...";
+
+    const snapServico = await dbAgenda.ref('servicos/' + servicoId).once('value');
+    const servConfig = snapServico.val().config || { dias: {}, horarios: {} };
+    const diasPermitidos = servConfig.dias || {};
+    const horariosAtivos = Object.keys(servConfig.horarios || {}).filter(h => servConfig.horarios[h]);
+    const totalHorariosServico = horariosAtivos.length;
+
+    // Buscar agendamentos do serviço nos próximos 30 dias
+    const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('servico').equalTo(servicoId).once('value');
+    const contagemPorData = {};
+    if (snapAgend.exists()) {
+        snapAgend.forEach(c => {
+            const ag = c.val();
+            contagemPorData[ag.data] = (contagemPorData[ag.data] || 0) + 1;
+        });
     }
 
-    const partes = dataInput.split('-');
-    const diaSemana = new Date(partes[0], partes[1] - 1, partes[2]).getDay().toString();
-    
-    if(diaSemana === "0" || diaSemana === "6" || !configDiasAtual_Contribuinte[diaSemana]) {
-        alert("Serviço não atende na data selecionada. Verifique os dias permitidos indicados em azul.");
-        document.getElementById('novo-agend-data').value = '';
-        document.getElementById('novo-agend-horario').innerHTML = "<option value=''>Selecione uma data válida</option>";
-        return;
+    let buttonsHTML = "";
+    const hoje = new Date();
+
+    // Renderiza próximos 30 dias a partir de amanhã
+    for (let i = 1; i <= 30; i++) {
+        const d = new Date();
+        d.setDate(hoje.getDate() + i);
+
+        const diaSemana = d.getDay().toString(); // 0: Dom, 1: Seg... 6: Sab
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const dataISO = `${yyyy}-${mm}-${dd}`;
+        const dataExibicao = `${dd}/${mm}`;
+
+        const diaSemanaNome = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
+
+        // Regras de bloqueio: Fim de semana, dia não atendido pelo serviço, ou lotado
+        const ehFimDeSemana = (diaSemana === "0" || diaSemana === "6");
+        const atendeNoDia = !ehFimDeSemana && !!diasPermitidos[diaSemana];
+        const ocupados = contagemPorData[dataISO] || 0;
+        const estaLotado = totalHorariosServico > 0 && ocupados >= totalHorariosServico;
+
+        const desabilitado = !atendeNoDia || estaLotado || totalHorariosServico === 0;
+        let motivo = "";
+        if (!atendeNoDia) motivo = "Sem atendimento";
+        else if (estaLotado) motivo = "Lotado";
+
+        buttonsHTML += `
+            <button type="button" class="date-btn date-btn-${gridContainerId}" 
+                data-date="${dataISO}" 
+                ${desabilitado ? 'disabled title="' + motivo + '"' : `onclick="selecionarDataGrid('${dataISO}', '${gridContainerId}', '${inputDataId}', '${selectHorarioId}', '${servicoId}')"`}>
+                <strong>${diaSemanaNome}</strong>
+                <span>${dataExibicao}</span>
+                ${desabilitado ? `<small style="font-size:9px;">${motivo}</small>` : ''}
+            </button>
+        `;
     }
-    buscarHorariosLivres(document.getElementById('novo-agend-servico').value, dataInput, 'novo-agend-horario');
+
+    container.innerHTML = buttonsHTML;
+}
+
+function selecionarDataGrid(dataISO, gridContainerId, inputDataId, selectHorarioId, servicoId) {
+    document.querySelectorAll(`.date-btn-${gridContainerId}`).forEach(btn => btn.classList.remove('active'));
+    const btn = document.querySelector(`.date-btn-${gridContainerId}[data-date="${dataISO}"]`);
+    if (btn) btn.classList.add('active');
+
+    document.getElementById(inputDataId).value = dataISO;
+    buscarHorariosLivres(servicoId, dataISO, selectHorarioId);
 }
 
 async function salvarAgendamentoContribuinte() {
@@ -251,14 +306,14 @@ async function salvarAgendamentoContribuinte() {
     const horario = document.getElementById('novo-agend-horario').value;
     const processos = document.getElementById('novo-agend-processos').value;
 
-    if(!servico || !data || !horario) return alert("Preencha os campos obrigatórios");
+    if(!servico || !data || !horario) return alert("Preencha todos os campos obrigatórios (Serviço, Data e Horário)!");
 
     const id = Date.now().toString();
     await dbAgenda.ref('agendamentos/' + id).set({
         id, contribuinteId: usuarioLogado.uid, contribuinteNome: usuarioLogado.nome, contribuinteCpf: usuarioLogado.cpf,
         servico, data, horario, processos
     });
-    alert("Agendamento Confirmado!");
+    alert("Agendamento Confirmado com sucesso!");
     listarMeusAgendamentos();
 }
 
@@ -363,7 +418,6 @@ async function renderTabelaAba(servicoId) {
     const dados = window.dadosAtuaisTabela[servicoId];
     const container = document.getElementById('tabela-container');
     
-    // Sem CPF na tabela, apenas o nome. Colunas ajustadas.
     let html = `<table><tr><th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th><th class="col-processos">Nº Processos (Expandido)</th></tr>`;
     for(let a of dados) {
         const textoProcessos = await processarListaProcessos(a.processos);
@@ -374,72 +428,153 @@ async function renderTabelaAba(servicoId) {
 }
 
 // ==========================================
-// 7. PAINEL SERVIDOR - PESQUISA
+// 7. PAINEL SERVIDOR - CONTRIBUINTES (PESQUISA, CADASTRO, LISTAGEM)
 // ==========================================
-function abrirPesquisa() {
-    document.getElementById('area-servidor-conteudo').innerHTML = `
-        <h3>Pesquisa de Agendamentos</h3>
-        <div style="display:flex; gap:10px; margin-bottom: 20px;">
-            <input type="text" id="pesq-termo" placeholder="Nome ou CPF" style="flex:1;">
-            <button onclick="realizarPesquisaServidor()">Pesquisar</button>
+async function abrirPesquisa() {
+    const area = document.getElementById('area-servidor-conteudo');
+    area.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:15px; gap:10px;">
+            <h3 style="margin:0;">Gestão de Contribuintes</h3>
+            <button onclick="abrirModalCadastroContribuinteServidor()" style="background:#48bb78;">+ Cadastrar Novo Contribuinte</button>
         </div>
-        <div id="acoes-pesquisa"></div>
-        <div id="resultado-pesquisa"></div>
+
+        <div style="display:flex; gap:10px; margin-bottom: 20px;">
+            <input type="text" id="pesq-termo" placeholder="Pesquisar por Nome ou CPF..." oninput="filtrarListaContribuintes()" style="flex:1;">
+        </div>
+
+        <div id="container-tabela-contribuintes">Carregando contribuintes...</div>
     `;
+
+    await carregarTodosContribuintes();
 }
 
-async function realizarPesquisaServidor() {
-    const termo = document.getElementById('pesq-termo').value.trim().toLowerCase();
-    if(!termo) return;
-    
-    const resContainer = document.getElementById('resultado-pesquisa');
-    resContainer.innerHTML = "Pesquisando...";
-    
-    const snap = await dbAgenda.ref('agendamentos').once('value');
-    let agendamentos = [];
-    let usuarioEncontrado = null; 
-    
-    if(snap.exists()) {
-        snap.forEach(child => {
-            let a = child.val();
-            let cpfNormal = a.contribuinteCpf ? a.contribuinteCpf.replace(/\D/g, '') : '';
-            let termoNormal = termo.replace(/\D/g, '');
-            if(a.contribuinteNome.toLowerCase().includes(termo) || (termoNormal && cpfNormal.includes(termoNormal))) {
-                agendamentos.push(a);
-                if(!usuarioEncontrado) usuarioEncontrado = { id: a.contribuinteId, nome: a.contribuinteNome, cpf: a.contribuinteCpf };
-            }
-        });
+async function carregarTodosContribuintes() {
+    try {
+        const snap = await dbAgenda.ref('usuarios').once('value');
+        listaContribuintesGlobal = [];
+
+        if (snap.exists()) {
+            snap.forEach(child => {
+                const u = child.val();
+                if (!u.tipo || u.tipo === 'contribuinte') {
+                    listaContribuintesGlobal.push({
+                        uid: child.key,
+                        nome: u.nome || "Sem Nome",
+                        cpf: u.cpf || "Sem CPF",
+                        telefone: u.telefone || "--"
+                    });
+                }
+            });
+        }
+        renderTabelaContribuintes(listaContribuintesGlobal);
+    } catch (e) {
+        document.getElementById('container-tabela-contribuintes').innerHTML = `<p>Erro ao carregar lista: ${e.message}</p>`;
     }
-    
-    agendamentos.sort((a, b) => {
-        const dateA = new Date(`${a.data}T${a.horario}`);
-        const dateB = new Date(`${b.data}T${b.horario}`);
-        return dateB - dateA;
+}
+
+function alternarOrdenacaoNome() {
+    ordemNomeAscendente = !ordemNomeAscendente;
+    filtrarListaContribuintes();
+}
+
+function filtrarListaContribuintes() {
+    const termo = (document.getElementById('pesq-termo').value || '').trim().toLowerCase();
+    const termoNum = termo.replace(/\D/g, '');
+
+    let filtrados = listaContribuintesGlobal.filter(c => {
+        const nomeMatch = c.nome.toLowerCase().includes(termo);
+        const cpfLimpo = c.cpf ? c.cpf.replace(/\D/g, '') : '';
+        const cpfMatch = termoNum ? cpfLimpo.includes(termoNum) : false;
+        return nomeMatch || cpfMatch;
     });
-    
-    let acoesHtml = "";
-    if(usuarioEncontrado) {
-        acoesHtml = `<button onclick="abrirNovoAgendamentoServidor('${usuarioEncontrado.id}', '${usuarioEncontrado.nome}', '${usuarioEncontrado.cpf}')" style="margin-bottom:15px; background:#48bb78;">+ Novo Agendamento para ${usuarioEncontrado.nome}</button>`;
-    }
-    document.getElementById('acoes-pesquisa').innerHTML = acoesHtml;
 
-    if(agendamentos.length === 0) { resContainer.innerHTML = "<p>Nenhum agendamento encontrado.</p>"; return; }
-    
-    const snapServicos = await dbAgenda.ref('servicos').once('value');
-    const mapa = {};
-    if(snapServicos.exists()) snapServicos.forEach(c => { mapa[c.key] = c.val().nome; });
+    filtrados.sort((a, b) => {
+        const comp = a.nome.localeCompare(b.nome);
+        return ordemNomeAscendente ? comp : -comp;
+    });
 
-    let html = `<table><tr><th class="col-horario">Data</th><th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th><th class="col-contribuinte">Serviço</th><th class="col-processos">Nº Processos</th></tr>`;
-    for(let a of agendamentos) {
-        let dataPtBr = a.data.split('-').reverse().join('/');
-        const textoProcessos = await processarListaProcessos(a.processos); 
-        html += `<tr><td>${dataPtBr}</td><td>${a.horario}</td><td>${a.contribuinteNome}</td><td>${mapa[a.servico]||'--'}</td><td>${textoProcessos}</td></tr>`;
-    }
-    html += `</table>`;
-    resContainer.innerHTML = html;
+    renderTabelaContribuintes(filtrados);
 }
 
-let configDiasAtual_Nas = {};
+function renderTabelaContribuintes(lista) {
+    const container = document.getElementById('container-tabela-contribuintes');
+    if (!container) return;
+
+    if (lista.length === 0) {
+        container.innerHTML = "<p>Nenhum contribuinte encontrado.</p>";
+        return;
+    }
+
+    const iconeOrdem = ordemNomeAscendente ? "▲ (A-Z)" : "▼ (Z-A)";
+
+    let html = `
+        <table>
+            <thead>
+                <tr>
+                    <th style="cursor:pointer;" onclick="alternarOrdenacaoNome()" title="Clique para ordenar">
+                        Nome Completo <span style="font-size:12px; color:var(--primary); font-weight:bold;">${iconeOrdem}</span>
+                    </th>
+                    <th>CPF</th>
+                    <th class="col-acoes">Agendar</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    lista.forEach(c => {
+        html += `
+            <tr>
+                <td><strong>${c.nome}</strong></td>
+                <td>${c.cpf}</td>
+                <td class="col-acoes">
+                    <button class="btn-add-agendamento" title="Novo Agendamento" onclick="abrirNovoAgendamentoServidor('${c.uid}', '${c.nome}', '${c.cpf}')">+</button>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+function abrirModalCadastroContribuinteServidor() {
+    document.getElementById('serv-cad-nome').value = '';
+    document.getElementById('serv-cad-cpf').value = '';
+    document.getElementById('serv-cad-telefone').value = '';
+    document.getElementById('modal-cadastrar-contribuinte-servidor').classList.remove('hidden');
+}
+
+async function salvarNovoContribuinteServidor() {
+    const nome = document.getElementById('serv-cad-nome').value.trim();
+    const cpf = document.getElementById('serv-cad-cpf').value.trim();
+    const telefone = document.getElementById('serv-cad-telefone').value.trim();
+
+    if (!nome || !cpf) {
+        return alert("Preencha pelo menos o Nome e o CPF!");
+    }
+
+    const cpfNumeros = cpf.replace(/\D/g, '');
+    const emailGerado = `${cpfNumeros}@agendamento.local`;
+    const senhaPadrao = "123456";
+
+    try {
+        const uid = "contribuinte_" + Date.now();
+        await dbAgenda.ref('usuarios/' + uid).set({
+            nome,
+            cpf,
+            telefone,
+            email: emailGerado,
+            tipo: 'contribuinte'
+        });
+        await dbAgenda.ref('cpf_emails/' + cpfNumeros).set({ email: emailGerado });
+
+        alert("Contribuinte cadastrado com sucesso!");
+        fecharModal('modal-cadastrar-contribuinte-servidor');
+        await carregarTodosContribuintes();
+    } catch (e) {
+        alert("Erro ao cadastrar contribuinte: " + e.message);
+    }
+}
 
 async function abrirNovoAgendamentoServidor(uid, nome, cpf) {
     document.getElementById('modal-agendar-servidor').classList.remove('hidden');
@@ -447,52 +582,40 @@ async function abrirNovoAgendamentoServidor(uid, nome, cpf) {
     document.getElementById('nas-uid').value = uid;
     document.getElementById('nas-nome').value = nome;
     document.getElementById('nas-cpf').value = cpf;
-    
+    document.getElementById('nas-processos').value = '';
+    document.getElementById('nas-data').value = '';
+    document.getElementById('nas-horario').innerHTML = "<option value=''>Selecione uma data acima</option>";
+    document.getElementById('nas-info-dias').innerText = '';
+
     const snap = await dbAgenda.ref('servicos').once('value');
     let selectHTML = `<select id="nas-servico" onchange="atualizarDiasNas()"><option value="">Selecione um Serviço...</option>`;
     if (snap.exists()) snap.forEach(child => { selectHTML += `<option value="${child.key}">${child.val().nome}</option>`; });
     selectHTML += `</select>`;
     document.getElementById('nas-servico-container').innerHTML = selectHTML;
-    
-    document.getElementById('nas-data').min = obterDataAmanhaString();
-    document.getElementById('nas-data').value = '';
-    document.getElementById('nas-horario').innerHTML = "<option>Preencha serviço e data antes</option>";
-    document.getElementById('nas-info-dias').innerText = '';
+
+    document.getElementById('nas-datas-grid').innerHTML = `<p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>`;
 }
 
 async function atualizarDiasNas() {
     const sId = document.getElementById('nas-servico').value;
     const info = document.getElementById('nas-info-dias');
-    if(!sId) { info.innerText = ""; return; }
+    const grid = document.getElementById('nas-datas-grid');
+    document.getElementById('nas-data').value = '';
+    document.getElementById('nas-horario').innerHTML = "<option value=''>Selecione uma data acima</option>";
+
+    if(!sId) { 
+        info.innerText = ""; 
+        grid.innerHTML = `<p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>`;
+        return; 
+    }
 
     const snap = await dbAgenda.ref('servicos/' + sId + '/config/dias').once('value');
-    configDiasAtual_Nas = snap.val() || {};
+    const configDias = snap.val() || {};
     
-    const ativos = Object.keys(configDiasAtual_Nas).filter(k => configDiasAtual_Nas[k]).map(k => diasNomes[k]);
+    const ativos = Object.keys(configDias).filter(k => configDias[k]).map(k => diasNomes[k]);
     info.innerText = ativos.length ? "Dias de atendimento: " + ativos.join(', ') : "Serviço sem dias configurados.";
-    if(document.getElementById('nas-data').value) validarDataNas();
-}
 
-function validarDataNas() {
-    const dataInput = document.getElementById('nas-data').value;
-    if(!dataInput) return;
-    
-    if(!checarDataFutura(dataInput)) {
-        alert("Agendamentos permitidos apenas para datas futuras (a partir de amanhã).");
-        document.getElementById('nas-data').value = '';
-        document.getElementById('nas-horario').innerHTML = "<option value=''>Selecione uma data válida</option>";
-        return;
-    }
-    
-    const partes = dataInput.split('-');
-    const diaSemana = new Date(partes[0], partes[1] - 1, partes[2]).getDay().toString();
-    if(diaSemana === "0" || diaSemana === "6" || !configDiasAtual_Nas[diaSemana]) {
-        alert("Data inválida para este serviço (veja os dias em azul).");
-        document.getElementById('nas-data').value = '';
-        document.getElementById('nas-horario').innerHTML = "<option value=''>Selecione uma data válida</option>";
-        return;
-    }
-    buscarHorariosLivres(document.getElementById('nas-servico').value, dataInput, 'nas-horario');
+    await gerarGridDatasDisponiveis(sId, 'nas-datas-grid', 'nas-data', 'nas-horario');
 }
 
 async function salvarAgendamentoNas() {
@@ -501,19 +624,22 @@ async function salvarAgendamentoNas() {
     const horario = document.getElementById('nas-horario').value;
     const processos = document.getElementById('nas-processos').value;
 
-    if(!servico || !data || !horario) return alert("Preencha os campos obrigatórios");
+    if(!servico || !data || !horario) return alert("Preencha todos os campos obrigatórios (Serviço, Data e Horário)!");
 
     const id = Date.now().toString();
     await dbAgenda.ref('agendamentos/' + id).set({
-        id, contribuinteId: document.getElementById('nas-uid').value,
+        id, 
+        contribuinteId: document.getElementById('nas-uid').value,
         contribuinteNome: document.getElementById('nas-nome').value,
         contribuinteCpf: document.getElementById('nas-cpf').value,
-        servico, data, horario, processos
+        servico, 
+        data, 
+        horario, 
+        processos
     });
 
-    alert("Agendamento Confirmado!");
+    alert("Agendamento Confirmado com sucesso!");
     fecharModal('modal-agendar-servidor');
-    realizarPesquisaServidor(); 
 }
 
 // ==========================================

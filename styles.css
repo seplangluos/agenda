@@ -50,7 +50,7 @@ button {
 button:hover { background: #1a4a79; }
 .btn-secondary { background: #718096; }
 
-/* Dashboard Base - Expandido para ocupar mais a tela */
+/* Dashboard Base */
 .dash { width: 95%; max-width: 1500px; margin: 0 auto; display: block; }
 nav {
     display: flex;
@@ -84,6 +84,7 @@ th { background-color: #f8f9fa; }
 .col-horario { width: 10%; white-space: nowrap; }
 .col-contribuinte { width: 20%; }
 .col-processos { width: 70%; }
+.col-acoes { width: 80px; text-align: center; }
 
 .tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 2px solid #ddd; }
 .tab { padding: 10px 20px; cursor: pointer; border: none; background: #eee; }
@@ -111,6 +112,68 @@ th { background-color: #f8f9fa; }
 }
 .horario-slot:hover { background: #cbd5e0; }
 .horario-slot.agendado { background: #c6f6d5; border-left: 4px solid #48bb78; }
+
+/* Botão de Adicionar Agendamento na Tabela (+) */
+.btn-add-agendamento {
+    background: #48bb78;
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+.btn-add-agendamento:hover {
+    background: #38a169;
+}
+
+/* Seletor de Datas Inteligente */
+.dates-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+    gap: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+.date-btn {
+    padding: 8px 4px;
+    font-size: 12px;
+    background: #fff;
+    border: 1px solid #cbd5e0;
+    color: #2d3748;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.date-btn:hover:not(:disabled) {
+    background: #ebf8ff;
+    border-color: var(--primary);
+}
+.date-btn.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.date-btn:disabled {
+    background: #edf2f7;
+    color: #a0aec0;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
 
 /* Modais */
 .modal {
