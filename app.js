@@ -166,6 +166,14 @@ function obterDataAmanhaString() {
     return `${ano}-${mes}-${dia}`;
 }
 
+function obterDataHojeString() {
+    const d = new Date();
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+}
+
 // ==========================================
 // 5. PAINEL CONTRIBUINTE
 // ==========================================
@@ -239,7 +247,6 @@ async function gerarGridDatasDisponiveis(servicoId, gridContainerId, inputDataId
     const horariosAtivos = Object.keys(servConfig.horarios || {}).filter(h => servConfig.horarios[h]);
     const totalHorariosServico = horariosAtivos.length;
 
-    // Buscar agendamentos do serviço nos próximos 30 dias
     const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('servico').equalTo(servicoId).once('value');
     const contagemPorData = {};
     if (snapAgend.exists()) {
@@ -252,12 +259,11 @@ async function gerarGridDatasDisponiveis(servicoId, gridContainerId, inputDataId
     let buttonsHTML = "";
     const hoje = new Date();
 
-    // Renderiza próximos 30 dias a partir de amanhã
     for (let i = 1; i <= 30; i++) {
         const d = new Date();
         d.setDate(hoje.getDate() + i);
 
-        const diaSemana = d.getDay().toString(); // 0: Dom, 1: Seg... 6: Sab
+        const diaSemana = d.getDay().toString();
         const yyyy = d.getFullYear();
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const dd = String(d.getDate()).padStart(2, '0');
@@ -266,7 +272,6 @@ async function gerarGridDatasDisponiveis(servicoId, gridContainerId, inputDataId
 
         const diaSemanaNome = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][d.getDay()];
 
-        // Regras de bloqueio: Fim de semana, dia não atendido pelo serviço, ou lotado
         const ehFimDeSemana = (diaSemana === "0" || diaSemana === "6");
         const atendeNoDia = !ehFimDeSemana && !!diasPermitidos[diaSemana];
         const ocupados = contagemPorData[dataISO] || 0;
@@ -428,7 +433,7 @@ async function renderTabelaAba(servicoId) {
 }
 
 // ==========================================
-// 7. PAINEL SERVIDOR - CONTRIBUINTES (PESQUISA, CADASTRO, LISTAGEM)
+// 7. PAINEL SERVIDOR - CONTRIBUINTES (PESQUISA, CADASTRO, LISTAGEM E EXCLUSÃO)
 // ==========================================
 async function abrirPesquisa() {
     const area = document.getElementById('area-servidor-conteudo');
@@ -515,7 +520,7 @@ function renderTabelaContribuintes(lista) {
                         Nome Completo <span style="font-size:12px; color:var(--primary); font-weight:bold;">${iconeOrdem}</span>
                     </th>
                     <th>CPF</th>
-                    <th class="col-acoes">Agendar</th>
+                    <th class="col-acoes">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -527,7 +532,10 @@ function renderTabelaContribuintes(lista) {
                 <td><strong>${c.nome}</strong></td>
                 <td>${c.cpf}</td>
                 <td class="col-acoes">
-                    <button class="btn-add-agendamento" title="Novo Agendamento" onclick="abrirNovoAgendamentoServidor('${c.uid}', '${c.nome}', '${c.cpf}')">+</button>
+                    <div class="btn-acoes-contribuinte">
+                        <button class="btn-add-agendamento" title="Novo Agendamento" onclick="abrirNovoAgendamentoServidor('${c.uid}', '${c.nome}', '${c.cpf}')">+</button>
+                        <button class="btn-del-agendamento" title="Ver / Excluir Agendamentos" onclick="abrirGerenciarAgendamentosContribuinte('${c.uid}', '${c.nome}', '${c.cpf}')">-</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -535,6 +543,94 @@ function renderTabelaContribuintes(lista) {
 
     html += `</tbody></table>`;
     container.innerHTML = html;
+}
+
+// Modal de Gerenciamento / Exclusão de Agendamentos
+async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
+    document.getElementById('modal-gerenciar-agendamentos-contribuinte').classList.remove('hidden');
+    document.getElementById('modal-gerenc-nome-display').innerText = `Contribuinte: ${nome} | CPF: ${cpf}`;
+    const container = document.getElementById('conteudo-gerenciar-agendamentos');
+    container.innerHTML = "Carregando agendamentos...";
+
+    try {
+        const hojeISO = obterDataHojeString();
+        const snap = await dbAgenda.ref('agendamentos').once('value');
+        const snapServicos = await dbAgenda.ref('servicos').once('value');
+        const mapaServicos = {};
+        if (snapServicos.exists()) snapServicos.forEach(s => { mapaServicos[s.key] = s.val().nome; });
+
+        let agendamentos = [];
+        if (snap.exists()) {
+            snap.forEach(c => {
+                const a = c.val();
+                const pertenceAoUsuario = (a.contribuinteCpf && cpf && a.contribuinteCpf.replace(/\D/g,'') === cpf.replace(/\D/g,'')) || a.contribuinteId === uid;
+                if (pertenceAoUsuario) {
+                    agendamentos.push(a);
+                }
+            });
+        }
+
+        agendamentos.sort((a, b) => {
+            const dateA = new Date(`${a.data}T${a.horario}`);
+            const dateB = new Date(`${b.data}T${b.horario}`);
+            return dateA - dateB;
+        });
+
+        if (agendamentos.length === 0) {
+            container.innerHTML = "<p>Nenhum agendamento encontrado para este contribuinte.</p>";
+            return;
+        }
+
+        let html = `
+            <table style="margin-top:10px;">
+                <thead>
+                    <tr>
+                        <th>Serviço</th>
+                        <th>Data</th>
+                        <th>Horário</th>
+                        <th style="text-align:center;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        agendamentos.forEach(a => {
+            const dataPtBr = a.data.split('-').reverse().join('/');
+            const servNome = mapaServicos[a.servico] || "Serviço Removido";
+            const ehFuturoOuHoje = a.data >= hojeISO;
+
+            html += `
+                <tr>
+                    <td>${servNome}</td>
+                    <td>${dataPtBr}</td>
+                    <td>${a.horario}</td>
+                    <td style="text-align:center;">
+                        ${ehFuturoOuHoje 
+                            ? `<button class="btn-excluir-item" onclick="excluirAgendamentoServidor('${a.id}', '${uid}', '${nome}', '${cpf}')">Excluir</button>` 
+                            : `<span style="color:#a0aec0; font-size:12px;">Finalizado</span>`
+                        }
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<p>Erro ao carregar agendamentos: ${e.message}</p>`;
+    }
+}
+
+async function excluirAgendamentoServidor(agendamentoId, uid, nome, cpf) {
+    if (confirm("Tem certeza que deseja excluir este agendamento?")) {
+        try {
+            await dbAgenda.ref('agendamentos/' + agendamentoId).remove();
+            alert("Agendamento excluído com sucesso!");
+            abrirGerenciarAgendamentosContribuinte(uid, nome, cpf);
+        } catch (e) {
+            alert("Erro ao excluir agendamento: " + e.message);
+        }
+    }
 }
 
 function abrirModalCadastroContribuinteServidor() {
@@ -555,7 +651,6 @@ async function salvarNovoContribuinteServidor() {
 
     const cpfNumeros = cpf.replace(/\D/g, '');
     const emailGerado = `${cpfNumeros}@agendamento.local`;
-    const senhaPadrao = "123456";
 
     try {
         const uid = "contribuinte_" + Date.now();

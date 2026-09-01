@@ -6,12 +6,14 @@
     <title>Sistema de Agendamento</title>
     <link rel="stylesheet" href="styles.css">
     
+    <!-- Firebase App (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 
+    <!-- TELAS DE LOGIN E CADASTRO -->
     <div id="screen-home" class="screen">
         <h1>Sistema de Agendamento</h1>
         <div class="card">
@@ -60,6 +62,7 @@
         </div>
     </div>
 
+    <!-- DASHBOARDS -->
     <div id="screen-dash-contribuinte" class="screen hidden dash">
         <nav>
             <h2>Portal do Contribuinte</h2>
@@ -86,6 +89,8 @@
         </div>
     </div>
 
+    <!-- MODAIS -->
+    <!-- Modal Cadastro de Contribuinte (Servidor) -->
     <div id="modal-cadastrar-contribuinte-servidor" class="modal hidden">
         <div class="modal-content">
             <span class="close-btn" onclick="fecharModal('modal-cadastrar-contribuinte-servidor')">&times;</span>
@@ -103,6 +108,16 @@
                 <input type="text" id="serv-cad-telefone" placeholder="(00) 00000-0000">
             </div>
             <button onclick="salvarNovoContribuinteServidor()" style="margin-top:10px; width:100%;">Salvar Contribuinte</button>
+        </div>
+    </div>
+
+    <!-- Modal Gerenciar / Cancelar Agendamentos do Contribuinte -->
+    <div id="modal-gerenciar-agendamentos-contribuinte" class="modal hidden">
+        <div class="modal-content" style="max-width: 650px;">
+            <span class="close-btn" onclick="fecharModal('modal-gerenciar-agendamentos-contribuinte')">&times;</span>
+            <h3>Agendamentos do Contribuinte</h3>
+            <p id="modal-gerenc-nome-display" style="font-weight:bold; margin-bottom:15px; color:#2b6cb0;"></p>
+            <div id="conteudo-gerenciar-agendamentos">Carregando...</div>
         </div>
     </div>
 
