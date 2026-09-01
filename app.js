@@ -365,7 +365,7 @@ async function listarMeusAgendamentos() {
 }
 
 // ==========================================
-// 6. PAINEL SERVIDOR - LISTA DIÁRIA
+// 6. PAINEL SERVIDOR - LISTA DIÁRIA (COM ABA 'TODOS')
 // ==========================================
 async function carregarListaDiaria() {
     const area = document.getElementById('area-servidor-conteudo');
@@ -388,7 +388,9 @@ async function renderListaServidor() {
 
     const snap = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataAlvo).once('value');
     const agendamentos = [];
-    snap.forEach(child => { agendamentos.push(child.val()); });
+    if (snap.exists()) {
+        snap.forEach(child => { agendamentos.push(child.val()); });
+    }
     
     if(agendamentos.length === 0) {
         document.getElementById('tabela-container').innerHTML = "<p>Sem agendamentos para este dia.</p>";
@@ -396,7 +398,13 @@ async function renderListaServidor() {
         return;
     }
 
-    const porServico = {};
+    // Ordenar todos os agendamentos por horário
+    agendamentos.sort((a, b) => a.horario.localeCompare(b.horario));
+
+    const porServico = {
+        'todos': agendamentos // Aba 'Todos' contendo a lista consolidada
+    };
+
     agendamentos.forEach(a => {
         if(!porServico[a.servico]) porServico[a.servico] = [];
         porServico[a.servico].push(a);
@@ -404,13 +412,20 @@ async function renderListaServidor() {
 
     const tabsContainer = document.getElementById('tabs-servicos');
     tabsContainer.innerHTML = "";
-    Object.keys(porServico).forEach((srvId, index) => {
+
+    // Aba 'Todos' inserida como primeira opção
+    tabsContainer.innerHTML += `<button class="tab active" onclick="mudarAba(this, 'todos')">Todos</button>`;
+
+    // Cria as abas individuais para cada serviço do dia
+    Object.keys(porServico).forEach((srvId) => {
+        if (srvId === 'todos') return;
         let nomeServico = mapaServicos[srvId] || "Serviço Removido";
-        tabsContainer.innerHTML += `<button class="tab ${index===0?'active':''}" onclick="mudarAba(this, '${srvId}')">${nomeServico}</button>`;
+        tabsContainer.innerHTML += `<button class="tab" onclick="mudarAba(this, '${srvId}')">${nomeServico}</button>`;
     });
 
     window.dadosAtuaisTabela = porServico; 
-    renderTabelaAba(Object.keys(porServico)[0]);
+    window.mapaServicosAtual = mapaServicos;
+    renderTabelaAba('todos');
 }
 
 function mudarAba(btn, servicoId) {
@@ -420,13 +435,24 @@ function mudarAba(btn, servicoId) {
 }
 
 async function renderTabelaAba(servicoId) {
-    const dados = window.dadosAtuaisTabela[servicoId];
+    const dados = window.dadosAtuaisTabela[servicoId] || [];
     const container = document.getElementById('tabela-container');
+    const ehAbaTodos = (servicoId === 'todos');
+    const mapa = window.mapaServicosAtual || {};
     
-    let html = `<table><tr><th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th><th class="col-processos">Nº Processos (Expandido)</th></tr>`;
+    let html = `<table><tr><th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th>`;
+    if (ehAbaTodos) {
+        html += `<th class="col-contribuinte">Serviço</th>`;
+    }
+    html += `<th class="col-processos">Nº Processos (Expandido)</th></tr>`;
+
     for(let a of dados) {
         const textoProcessos = await processarListaProcessos(a.processos);
-        html += `<tr><td>${a.horario}</td><td>${a.contribuinteNome}</td><td>${textoProcessos}</td></tr>`;
+        html += `<tr><td>${a.horario}</td><td>${a.contribuinteNome}</td>`;
+        if (ehAbaTodos) {
+            html += `<td><strong>${mapa[a.servico] || '--'}</strong></td>`;
+        }
+        html += `<td>${textoProcessos}</td></tr>`;
     }
     html += `</table>`;
     container.innerHTML = html;
@@ -580,7 +606,6 @@ async function salvarEdicaoContribuinte() {
             telefone
         });
 
-        // Atualizar ponteiro de CPF para e-mail caso o CPF tenha sido alterado
         if (cpfAntigo && cpfAntigo !== novoCpfLimpo) {
             const snapCpf = await dbAgenda.ref('cpf_emails/' + cpfAntigo).once('value');
             if (snapCpf.exists()) {
@@ -590,7 +615,6 @@ async function salvarEdicaoContribuinte() {
             }
         }
 
-        // Atualizar também nos agendamentos vinculados ao usuário
         const snapAgends = await dbAgenda.ref('agendamentos').orderByChild('contribuinteId').equalTo(uid).once('value');
         if (snapAgends.exists()) {
             const updates = {};
@@ -922,9 +946,10 @@ async function abrirCalendario(dataStr = null) {
                 let primeiroNome = a.contribuinteNome.split(' ')[0]; 
                 let srvNome = mapaServicos[a.servico] || '--';
                 
+                // Exibe: Horário - Contribuinte (Serviço)
                 coluna.innerHTML += `
                     <div class="horario-slot agendado" onclick="abrirDetalhesCalendario('${a.id}', '${srvNome}')">
-                        <strong>${a.horario}</strong> - ${primeiroNome}
+                        <strong>${a.horario}</strong> - ${primeiroNome} <span style="font-size:11px; opacity:0.85;">(${srvNome})</span>
                     </div>
                 `;
             });
