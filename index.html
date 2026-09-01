@@ -111,13 +111,53 @@
         </div>
     </div>
 
+    <!-- Modal Editar Contribuinte -->
+    <div id="modal-editar-contribuinte" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" onclick="fecharModal('modal-editar-contribuinte')">&times;</span>
+            <h3>Editar Dados do Contribuinte</h3>
+            <input type="hidden" id="edit-contrib-uid">
+            <input type="hidden" id="edit-contrib-cpf-antigo">
+            <div class="form-group">
+                <label>Nome Completo:</label>
+                <input type="text" id="edit-contrib-nome">
+            </div>
+            <div class="form-group">
+                <label>CPF:</label>
+                <input type="text" id="edit-contrib-cpf">
+            </div>
+            <div class="form-group">
+                <label>Telefone:</label>
+                <input type="text" id="edit-contrib-telefone">
+            </div>
+            <button onclick="salvarEdicaoContribuinte()" style="margin-top:10px; width:100%;">Atualizar Dados</button>
+        </div>
+    </div>
+
     <!-- Modal Gerenciar / Cancelar Agendamentos do Contribuinte -->
     <div id="modal-gerenciar-agendamentos-contribuinte" class="modal hidden">
-        <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-content" style="max-width: 750px;">
             <span class="close-btn" onclick="fecharModal('modal-gerenciar-agendamentos-contribuinte')">&times;</span>
             <h3>Agendamentos do Contribuinte</h3>
             <p id="modal-gerenc-nome-display" style="font-weight:bold; margin-bottom:15px; color:#2b6cb0;"></p>
             <div id="conteudo-gerenciar-agendamentos">Carregando...</div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Processos do Agendamento -->
+    <div id="modal-editar-processos-agendamento" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" onclick="fecharModal('modal-editar-processos-agendamento')">&times;</span>
+            <h3>Editar Processos do Agendamento</h3>
+            <input type="hidden" id="edit-agend-id">
+            <input type="hidden" id="edit-agend-uid">
+            <input type="hidden" id="edit-agend-nome">
+            <input type="hidden" id="edit-agend-cpf">
+            <div class="form-group">
+                <label>Nº do(s) Processo(s) (separados por vírgula):</label>
+                <input type="text" id="edit-agend-processos" placeholder="Ex: 5549/2024, 1234/2023">
+            </div>
+            <button onclick="salvarEdicaoProcessos()" style="margin-top:10px; width:100%;">Salvar Alterações</button>
         </div>
     </div>
 

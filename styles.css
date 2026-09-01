@@ -84,7 +84,7 @@ th { background-color: #f8f9fa; }
 .col-horario { width: 10%; white-space: nowrap; }
 .col-contribuinte { width: 20%; }
 .col-processos { width: 70%; }
-.col-acoes { width: 90px; text-align: center; }
+.col-acoes { width: 130px; text-align: center; }
 
 .tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 2px solid #ddd; }
 .tab { padding: 10px 20px; cursor: pointer; border: none; background: #eee; }
@@ -113,16 +113,17 @@ th { background-color: #f8f9fa; }
 .horario-slot:hover { background: #cbd5e0; }
 .horario-slot.agendado { background: #c6f6d5; border-left: 4px solid #48bb78; }
 
-/* Botões de Ação na Tabela (+ e -) */
+/* Botões de Ação na Tabela (+, - e Editar) */
 .btn-acoes-contribuinte {
     display: flex;
     justify-content: center;
+    align-items: center;
     gap: 6px;
 }
-.btn-add-agendamento, .btn-del-agendamento {
+.btn-add-agendamento, .btn-del-agendamento, .btn-edit-contribuinte {
     color: white;
     font-weight: bold;
-    font-size: 16px;
+    font-size: 15px;
     border-radius: 50%;
     width: 30px;
     height: 30px;
@@ -138,6 +139,9 @@ th { background-color: #f8f9fa; }
 .btn-del-agendamento { background: #e53e3e; }
 .btn-del-agendamento:hover { background: #c53030; }
 
+.btn-edit-contribuinte { background: #ed8936; }
+.btn-edit-contribuinte:hover { background: #dd6b20; }
+
 .btn-excluir-item {
     background: #e53e3e;
     color: #fff;
@@ -146,6 +150,16 @@ th { background-color: #f8f9fa; }
     border-radius: 4px;
 }
 .btn-excluir-item:hover { background: #c53030; }
+
+.btn-editar-processo {
+    background: #ed8936;
+    color: #fff;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+.btn-editar-processo:hover { background: #dd6b20; }
 
 /* Seletor de Datas Inteligente */
 .dates-selector-grid {

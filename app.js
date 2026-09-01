@@ -433,7 +433,7 @@ async function renderTabelaAba(servicoId) {
 }
 
 // ==========================================
-// 7. PAINEL SERVIDOR - CONTRIBUINTES (PESQUISA, CADASTRO, LISTAGEM E EXCLUSÃO)
+// 7. PAINEL SERVIDOR - CONTRIBUINTES (PESQUISA, CADASTRO, EDIÇÃO, LISTAGEM)
 // ==========================================
 async function abrirPesquisa() {
     const area = document.getElementById('area-servidor-conteudo');
@@ -527,14 +527,19 @@ function renderTabelaContribuintes(lista) {
     `;
 
     lista.forEach(c => {
+        const cNomeEscapado = c.nome.replace(/'/g, "\\'");
+        const cCpfEscapado = c.cpf.replace(/'/g, "\\'");
+        const cTelEscapado = (c.telefone || '').replace(/'/g, "\\'");
+
         html += `
             <tr>
                 <td><strong>${c.nome}</strong></td>
                 <td>${c.cpf}</td>
                 <td class="col-acoes">
                     <div class="btn-acoes-contribuinte">
-                        <button class="btn-add-agendamento" title="Novo Agendamento" onclick="abrirNovoAgendamentoServidor('${c.uid}', '${c.nome}', '${c.cpf}')">+</button>
-                        <button class="btn-del-agendamento" title="Ver / Excluir Agendamentos" onclick="abrirGerenciarAgendamentosContribuinte('${c.uid}', '${c.nome}', '${c.cpf}')">-</button>
+                        <button class="btn-add-agendamento" title="Novo Agendamento" onclick="abrirNovoAgendamentoServidor('${c.uid}', '${cNomeEscapado}', '${cCpfEscapado}')">+</button>
+                        <button class="btn-del-agendamento" title="Ver / Excluir Agendamentos" onclick="abrirGerenciarAgendamentosContribuinte('${c.uid}', '${cNomeEscapado}', '${cCpfEscapado}')">-</button>
+                        <button class="btn-edit-contribuinte" title="Editar Contribuinte" onclick="abrirModalEditarContribuinte('${c.uid}', '${cNomeEscapado}', '${cCpfEscapado}', '${cTelEscapado}')">✏️</button>
                     </div>
                 </td>
             </tr>
@@ -545,7 +550,68 @@ function renderTabelaContribuintes(lista) {
     container.innerHTML = html;
 }
 
-// Modal de Gerenciamento / Exclusão de Agendamentos
+// ==========================================
+// EDIÇÃO DE CONTRIBUINTE
+// ==========================================
+function abrirModalEditarContribuinte(uid, nome, cpf, telefone) {
+    document.getElementById('edit-contrib-uid').value = uid;
+    document.getElementById('edit-contrib-cpf-antigo').value = cpf;
+    document.getElementById('edit-contrib-nome').value = nome || '';
+    document.getElementById('edit-contrib-cpf').value = cpf || '';
+    document.getElementById('edit-contrib-telefone').value = telefone === '--' ? '' : telefone;
+    document.getElementById('modal-editar-contribuinte').classList.remove('hidden');
+}
+
+async function salvarEdicaoContribuinte() {
+    const uid = document.getElementById('edit-contrib-uid').value;
+    const cpfAntigo = document.getElementById('edit-contrib-cpf-antigo').value.replace(/\D/g, '');
+    const nome = document.getElementById('edit-contrib-nome').value.trim();
+    const cpf = document.getElementById('edit-contrib-cpf').value.trim();
+    const telefone = document.getElementById('edit-contrib-telefone').value.trim();
+
+    if (!nome || !cpf) return alert("Preencha Nome e CPF!");
+
+    const novoCpfLimpo = cpf.replace(/\D/g, '');
+
+    try {
+        await dbAgenda.ref('usuarios/' + uid).update({
+            nome,
+            cpf,
+            telefone
+        });
+
+        // Atualizar ponteiro de CPF para e-mail caso o CPF tenha sido alterado
+        if (cpfAntigo && cpfAntigo !== novoCpfLimpo) {
+            const snapCpf = await dbAgenda.ref('cpf_emails/' + cpfAntigo).once('value');
+            if (snapCpf.exists()) {
+                const emailVinculado = snapCpf.val().email;
+                await dbAgenda.ref('cpf_emails/' + novoCpfLimpo).set({ email: emailVinculado });
+                await dbAgenda.ref('cpf_emails/' + cpfAntigo).remove();
+            }
+        }
+
+        // Atualizar também nos agendamentos vinculados ao usuário
+        const snapAgends = await dbAgenda.ref('agendamentos').orderByChild('contribuinteId').equalTo(uid).once('value');
+        if (snapAgends.exists()) {
+            const updates = {};
+            snapAgends.forEach(child => {
+                updates[`agendamentos/${child.key}/contribuinteNome`] = nome;
+                updates[`agendamentos/${child.key}/contribuinteCpf`] = cpf;
+            });
+            await dbAgenda.ref().update(updates);
+        }
+
+        alert("Dados do contribuinte atualizados!");
+        fecharModal('modal-editar-contribuinte');
+        await carregarTodosContribuintes();
+    } catch (e) {
+        alert("Erro ao atualizar contribuinte: " + e.message);
+    }
+}
+
+// ==========================================
+// GERENCIAMENTO E EDIÇÃO DE AGENDAMENTOS
+// ==========================================
 async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
     document.getElementById('modal-gerenciar-agendamentos-contribuinte').classList.remove('hidden');
     document.getElementById('modal-gerenc-nome-display').innerText = `Contribuinte: ${nome} | CPF: ${cpf}`;
@@ -588,7 +654,8 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
                         <th>Serviço</th>
                         <th>Data</th>
                         <th>Horário</th>
-                        <th style="text-align:center;">Ação</th>
+                        <th>Processos</th>
+                        <th style="text-align:center; min-width: 140px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -598,15 +665,20 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
             const dataPtBr = a.data.split('-').reverse().join('/');
             const servNome = mapaServicos[a.servico] || "Serviço Removido";
             const ehFuturoOuHoje = a.data >= hojeISO;
+            const procEscapado = (a.processos || '').replace(/'/g, "\\'");
+            const nomeEscapado = nome.replace(/'/g, "\\'");
+            const cpfEscapado = cpf.replace(/'/g, "\\'");
 
             html += `
                 <tr>
                     <td>${servNome}</td>
                     <td>${dataPtBr}</td>
                     <td>${a.horario}</td>
+                    <td><small>${a.processos || 'Nenhum'}</small></td>
                     <td style="text-align:center;">
                         ${ehFuturoOuHoje 
-                            ? `<button class="btn-excluir-item" onclick="excluirAgendamentoServidor('${a.id}', '${uid}', '${nome}', '${cpf}')">Excluir</button>` 
+                            ? `<button class="btn-editar-processo" title="Editar Processos" onclick="abrirModalEditarProcessos('${a.id}', '${procEscapado}', '${uid}', '${nomeEscapado}', '${cpfEscapado}')">✏️</button>
+                               <button class="btn-excluir-item" title="Excluir" onclick="excluirAgendamentoServidor('${a.id}', '${uid}', '${nomeEscapado}', '${cpfEscapado}')">Excluir</button>` 
                             : `<span style="color:#a0aec0; font-size:12px;">Finalizado</span>`
                         }
                     </td>
@@ -618,6 +690,34 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
         container.innerHTML = html;
     } catch (e) {
         container.innerHTML = `<p>Erro ao carregar agendamentos: ${e.message}</p>`;
+    }
+}
+
+function abrirModalEditarProcessos(agendamentoId, processosAtuais, uid, nome, cpf) {
+    document.getElementById('edit-agend-id').value = agendamentoId;
+    document.getElementById('edit-agend-uid').value = uid;
+    document.getElementById('edit-agend-nome').value = nome;
+    document.getElementById('edit-agend-cpf').value = cpf;
+    document.getElementById('edit-agend-processos').value = processosAtuais || '';
+    document.getElementById('modal-editar-processos-agendamento').classList.remove('hidden');
+}
+
+async function salvarEdicaoProcessos() {
+    const agendamentoId = document.getElementById('edit-agend-id').value;
+    const uid = document.getElementById('edit-agend-uid').value;
+    const nome = document.getElementById('edit-agend-nome').value;
+    const cpf = document.getElementById('edit-agend-cpf').value;
+    const novosProcessos = document.getElementById('edit-agend-processos').value.trim();
+
+    try {
+        await dbAgenda.ref('agendamentos/' + agendamentoId).update({
+            processos: novosProcessos
+        });
+        alert("Processos atualizados com sucesso!");
+        fecharModal('modal-editar-processos-agendamento');
+        abrirGerenciarAgendamentosContribuinte(uid, nome, cpf);
+    } catch (e) {
+        alert("Erro ao atualizar processos: " + e.message);
     }
 }
 
