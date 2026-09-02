@@ -253,19 +253,33 @@ th { background-color: #f8f9fa; }
 }
 .btn-editar { background: #ed8936; padding: 8px 12px; font-size: 14px; }
 .btn-editar:hover { background: #dd6b20; }
-/* ================= REGRAS DE IMPRESSÃO ================= */
+/* ================= REGRAS DE IMPRESSÃO (PAISAGEM E RELATÓRIO) ================= */
 @media print {
     @page {
         size: landscape;
-        margin: 10mm;
+        margin: 8mm 10mm;
     }
 
     body {
         background: #fff !important;
         color: #000 !important;
+        font-size: 12px !important;
     }
 
-    nav, .btn, button, .tabs, .close-btn, .modal, #screen-home, #screen-login-contribuinte, #screen-login-servidor, #screen-cadastro-contribuinte {
+    /* Oculta tudo que não faz parte da impressão */
+    nav, 
+    .tabs, 
+    button, 
+    .btn, 
+    .no-print, 
+    .modal, 
+    #screen-home, 
+    #screen-login-contribuinte, 
+    #screen-login-servidor, 
+    #screen-cadastro-contribuinte,
+    .col-acoes,
+    #tabs-servicos,
+    .filtro-data-container {
         display: none !important;
     }
 
@@ -275,56 +289,61 @@ th { background-color: #f8f9fa; }
         width: 100% !important;
         box-shadow: none !important;
         background: transparent !important;
+        overflow: visible !important;
     }
 
-    /* Container de cada serviço para impressão */
-    .print-service-block {
-        break-inside: avoid;
-        page-break-inside: avoid;
-        margin-bottom: 25px;
+    /* Evita que o bloco do serviço se quebre no meio; cabe na mesma página se couber, senão vai para a próxima folha */
+    .bloco-servico-impressao {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-bottom: 25px !important;
+        display: block;
     }
 
-    .print-header {
-        border-bottom: 2px solid #333;
-        padding-bottom: 4px;
-        margin-bottom: 8px;
+    .cabecalho-servico-impressao {
         display: flex;
         justify-content: space-between;
-        align-items: flex-end;
+        align-items: center;
+        border-bottom: 2px solid #222;
+        padding-bottom: 4px;
+        margin-bottom: 6px;
     }
 
-    .print-header h3 {
-        margin: 0;
-        font-size: 16px;
-        color: #000;
+    .cabecalho-servico-impressao h3 {
+        margin: 0 !important;
+        font-size: 16px !important;
+        color: #000 !important;
         text-transform: uppercase;
     }
 
-    .print-header span {
-        font-size: 13px;
+    .cabecalho-servico-impressao span {
+        font-size: 13px !important;
         font-weight: bold;
+        color: #333;
     }
 
     table {
-        margin-top: 5px !important;
-        border: 1px solid #999 !important;
         width: 100% !important;
+        border-collapse: collapse !important;
+        margin-top: 4px !important;
+        margin-bottom: 10px !important;
     }
 
     th, td {
-        border: 1px solid #999 !important;
+        border: 1px solid #444 !important;
         padding: 6px 8px !important;
-        font-size: 12px !important;
+        font-size: 11px !important;
         color: #000 !important;
     }
 
     th {
-        background-color: #eee !important;
+        background-color: #f0f0f0 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        font-weight: bold !important;
     }
 
-    .col-acoes {
-        display: none !important;
-    }
+    .col-horario { width: 10% !important; }
+    .col-contribuinte { width: 25% !important; }
+    .col-processos { width: 65% !important; }
 }
