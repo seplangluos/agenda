@@ -460,39 +460,44 @@ async function renderTabelaAba(servicoId) {
 // ==============================================================
 // FUNÇÃO DE IMPRESSÃO: RELATÓRIO GERAL COM TODAS AS ABAS
 // ==============================================================
+// ==============================================================
+// FUNÇÃO DE IMPRESSÃO: RELATÓRIO GERAL COM TODAS AS ABAS/SERVIÇOS
+// ==============================================================
 async function imprimirRelatorioGeral() {
     const dataAlvo = document.getElementById('filtro-data').value;
     const dataPtBr = dataAlvo.split('-').reverse().join('/');
     const container = document.getElementById('tabela-container');
 
-    container.innerHTML = `<p style="padding: 20px; font-weight: bold;">Gerando relatório completo para impressão...</p>`;
+    container.innerHTML = `<p style="padding: 20px; font-weight: bold;">Gerando relatório com todos os serviços para impressão...</p>`;
 
+    // 1. Busca todos os serviços cadastrados
     const snapServicos = await dbAgenda.ref('servicos').once('value');
-    const servicos = {};
+    const servicosCadastrados = [];
     if (snapServicos.exists()) {
-        snapServicos.forEach(c => { servicos[c.key] = c.val().nome; });
+        snapServicos.forEach(c => {
+            servicosCadastrados.push({
+                id: c.key,
+                nome: c.val().nome
+            });
+        });
     }
 
-    const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataAlvo).once('value');
-    const todosAgendamentos = [];
-    if (snapAgend.exists()) {
-        snapAgend.forEach(c => todosAgendamentos.push(c.val()));
-    }
-
-    if (todosAgendamentos.length === 0) {
-        alert("Não há agendamentos para imprimir nesta data!");
+    if (servicosCadastrados.length === 0) {
+        alert("Nenhum serviço cadastrado no sistema.");
         renderListaServidor();
         return;
     }
 
-    // Agrupa por serviço
-    const agrupadoPorServico = {};
-    todosAgendamentos.forEach(a => {
-        if (!agrupadoPorServico[a.servico]) agrupadoPorServico[a.servico] = [];
-        agrupadoPorServico[a.servico].push(a);
-    });
+    // 2. Busca todos os agendamentos da data alvo
+    const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataAlvo).once('value');
+    const todosAgendamentos = [];
+    if (snapAgend.exists()) {
+        snapAgend.forEach(c => {
+            todosAgendamentos.push(c.val());
+        });
+    }
 
-    // Barra de navegação/retorno visível apenas em tela
+    // 3. Monta o relatório corrido percorrendo TODOS os serviços
     let htmlFinal = `
         <div class="no-print" style="margin-bottom: 20px; display: flex; gap: 10px;">
             <button onclick="window.print()" style="background: #38a169; font-weight: bold;">Confirmar Impressão</button>
@@ -501,15 +506,19 @@ async function imprimirRelatorioGeral() {
         <div id="area-relatorio-impressao">
     `;
 
-    // Constrói sequencialmente cada serviço
-    for (const [sId, lista] of Object.entries(agrupadoPorServico)) {
-        const nomeServico = servicos[sId] || "Serviço";
-        lista.sort((a, b) => a.horario.localeCompare(b.horario));
+    for (const serv of servicosCadastrados) {
+        // Filtra os agendamentos que pertencem a este serviço (compatível com ID ou Nome)
+        const agendamentosDoServico = todosAgendamentos.filter(a => 
+            a.servico === serv.id || a.servico === serv.nome || a.servicoNome === serv.nome
+        );
+
+        // Ordena por horário crescente
+        agendamentosDoServico.sort((a, b) => a.horario.localeCompare(b.horario));
 
         htmlFinal += `
             <div class="bloco-servico-impressao">
                 <div class="cabecalho-servico-impressao">
-                    <h3>${nomeServico}</h3>
+                    <h3>${serv.nome}</h3>
                     <span>Data: ${dataPtBr}</span>
                 </div>
                 <table>
@@ -523,15 +532,25 @@ async function imprimirRelatorioGeral() {
                     <tbody>
         `;
 
-        for (const a of lista) {
-            const textoProcessos = await processarListaProcessos(a.processos);
+        if (agendamentosDoServico.length === 0) {
             htmlFinal += `
                 <tr>
-                    <td class="col-horario"><strong>${a.horario}</strong></td>
-                    <td class="col-contribuinte">${a.contribuinteNome}</td>
-                    <td class="col-processos">${textoProcessos}</td>
+                    <td colspan="3" style="text-align:center; color:#666; font-style: italic; padding: 12px;">
+                        Nenhum agendamento para este serviço nesta data.
+                    </td>
                 </tr>
             `;
+        } else {
+            for (const a of agendamentosDoServico) {
+                const textoProcessos = await processarListaProcessos(a.processos);
+                htmlFinal += `
+                    <tr>
+                        <td class="col-horario"><strong>${a.horario}</strong></td>
+                        <td class="col-contribuinte">${a.contribuinteNome || 'Não informado'}</td>
+                        <td class="col-processos">${textoProcessos}</td>
+                    </tr>
+                `;
+            }
         }
 
         htmlFinal += `
@@ -544,7 +563,7 @@ async function imprimirRelatorioGeral() {
     htmlFinal += `</div>`;
     container.innerHTML = htmlFinal;
 
-    // Dispara a impressão imediatamente
+    // Dispara a impressão na tela
     setTimeout(() => {
         window.print();
     }, 400);
