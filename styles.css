@@ -253,3 +253,78 @@ th { background-color: #f8f9fa; }
 }
 .btn-editar { background: #ed8936; padding: 8px 12px; font-size: 14px; }
 .btn-editar:hover { background: #dd6b20; }
+/* ================= REGRAS DE IMPRESSÃO ================= */
+@media print {
+    @page {
+        size: landscape;
+        margin: 10mm;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    nav, .btn, button, .tabs, .close-btn, .modal, #screen-home, #screen-login-contribuinte, #screen-login-servidor, #screen-cadastro-contribuinte {
+        display: none !important;
+    }
+
+    .screen, .dash, .conteudo {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+    /* Container de cada serviço para impressão */
+    .print-service-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        margin-bottom: 25px;
+    }
+
+    .print-header {
+        border-bottom: 2px solid #333;
+        padding-bottom: 4px;
+        margin-bottom: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+    }
+
+    .print-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: #000;
+        text-transform: uppercase;
+    }
+
+    .print-header span {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    table {
+        margin-top: 5px !important;
+        border: 1px solid #999 !important;
+        width: 100% !important;
+    }
+
+    th, td {
+        border: 1px solid #999 !important;
+        padding: 6px 8px !important;
+        font-size: 12px !important;
+        color: #000 !important;
+    }
+
+    th {
+        background-color: #eee !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .col-acoes {
+        display: none !important;
+    }
+}
