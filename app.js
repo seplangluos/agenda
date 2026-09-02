@@ -458,17 +458,14 @@ async function renderTabelaAba(servicoId) {
 }
 
 // ==============================================================
-// FUNÇÃO DE IMPRESSÃO: RELATÓRIO GERAL COM TODAS AS ABAS
-// ==============================================================
-// ==============================================================
-// FUNÇÃO DE IMPRESSÃO: RELATÓRIO GERAL COM TODAS AS ABAS/SERVIÇOS
+// FUNÇÃO DE IMPRESSÃO: RELATÓRIO GERAL (APENAS COM AGENDAMENTOS)
 // ==============================================================
 async function imprimirRelatorioGeral() {
     const dataAlvo = document.getElementById('filtro-data').value;
     const dataPtBr = dataAlvo.split('-').reverse().join('/');
     const container = document.getElementById('tabela-container');
 
-    container.innerHTML = `<p style="padding: 20px; font-weight: bold;">Gerando relatório com todos os serviços para impressão...</p>`;
+    container.innerHTML = `<p style="padding: 20px; font-weight: bold;">Gerando relatório completo para impressão...</p>`;
 
     // 1. Busca todos os serviços cadastrados
     const snapServicos = await dbAgenda.ref('servicos').once('value');
@@ -482,13 +479,7 @@ async function imprimirRelatorioGeral() {
         });
     }
 
-    if (servicosCadastrados.length === 0) {
-        alert("Nenhum serviço cadastrado no sistema.");
-        renderListaServidor();
-        return;
-    }
-
-    // 2. Busca todos os agendamentos da data alvo
+    // 2. Busca todos os agendamentos da data
     const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataAlvo).once('value');
     const todosAgendamentos = [];
     if (snapAgend.exists()) {
@@ -497,7 +488,13 @@ async function imprimirRelatorioGeral() {
         });
     }
 
-    // 3. Monta o relatório corrido percorrendo TODOS os serviços
+    if (todosAgendamentos.length === 0) {
+        alert("Não há nenhum agendamento registrado nesta data para impressão!");
+        renderListaServidor();
+        return;
+    }
+
+    // 3. Monta o relatório corrido ignorando serviços sem agendamentos
     let htmlFinal = `
         <div class="no-print" style="margin-bottom: 20px; display: flex; gap: 10px;">
             <button onclick="window.print()" style="background: #38a169; font-weight: bold;">Confirmar Impressão</button>
@@ -506,11 +503,20 @@ async function imprimirRelatorioGeral() {
         <div id="area-relatorio-impressao">
     `;
 
+    let totalServicosComAtendimento = 0;
+
     for (const serv of servicosCadastrados) {
-        // Filtra os agendamentos que pertencem a este serviço (compatível com ID ou Nome)
+        // Filtra os agendamentos que pertencem a este serviço
         const agendamentosDoServico = todosAgendamentos.filter(a => 
             a.servico === serv.id || a.servico === serv.nome || a.servicoNome === serv.nome
         );
+
+        // Se o serviço não tem agendamentos no dia, pula e não renderiza na folha
+        if (agendamentosDoServico.length === 0) {
+            continue;
+        }
+
+        totalServicosComAtendimento++;
 
         // Ordena por horário crescente
         agendamentosDoServico.sort((a, b) => a.horario.localeCompare(b.horario));
@@ -532,25 +538,15 @@ async function imprimirRelatorioGeral() {
                     <tbody>
         `;
 
-        if (agendamentosDoServico.length === 0) {
+        for (const a of agendamentosDoServico) {
+            const textoProcessos = await processarListaProcessos(a.processos);
             htmlFinal += `
                 <tr>
-                    <td colspan="3" style="text-align:center; color:#666; font-style: italic; padding: 12px;">
-                        Nenhum agendamento para este serviço nesta data.
-                    </td>
+                    <td class="col-horario"><strong>${a.horario}</strong></td>
+                    <td class="col-contribuinte">${a.contribuinteNome || 'Não informado'}</td>
+                    <td class="col-processos">${textoProcessos}</td>
                 </tr>
             `;
-        } else {
-            for (const a of agendamentosDoServico) {
-                const textoProcessos = await processarListaProcessos(a.processos);
-                htmlFinal += `
-                    <tr>
-                        <td class="col-horario"><strong>${a.horario}</strong></td>
-                        <td class="col-contribuinte">${a.contribuinteNome || 'Não informado'}</td>
-                        <td class="col-processos">${textoProcessos}</td>
-                    </tr>
-                `;
-            }
         }
 
         htmlFinal += `
@@ -560,10 +556,17 @@ async function imprimirRelatorioGeral() {
         `;
     }
 
+    // Caso existam agendamentos soltos sem vínculo exato a um serviço cadastrado
+    if (totalServicosComAtendimento === 0) {
+        alert("Nenhum agendamento vinculado aos serviços cadastrados nesta data.");
+        renderListaServidor();
+        return;
+    }
+
     htmlFinal += `</div>`;
     container.innerHTML = htmlFinal;
 
-    // Dispara a impressão na tela
+    // Dispara a impressão
     setTimeout(() => {
         window.print();
     }, 400);
