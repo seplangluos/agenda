@@ -80,6 +80,10 @@ th, td {
 }
 th { background-color: #f8f9fa; }
 
+/* Linhas de Status (Verde para concluída, Roxo claro para aguardando) */
+.linha-concluida { background-color: #c6f6d5 !important; }
+.linha-aguardando { background-color: #e9d8fd !important; } 
+
 /* Larguras de colunas personalizadas */
 .col-horario { width: 10%; white-space: nowrap; }
 .col-contribuinte { width: 20%; }
@@ -103,15 +107,18 @@ th { background-color: #f8f9fa; }
 .slots-container { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
 
 .horario-slot {
-    background: #e2e8f0;
     padding: 8px;
     font-size: 13px;
     border-radius: 4px;
     cursor: pointer;
     transition: 0.2s;
 }
-.horario-slot:hover { background: #cbd5e0; }
-.horario-slot.agendado { background: #c6f6d5; border-left: 4px solid #48bb78; }
+.horario-slot:hover { filter: brightness(0.95); }
+
+/* Cores de status no calendário */
+.horario-slot.pendente { background: #ebf8ff; border-left: 4px solid #3182ce; }
+.horario-slot.aguardando { background: #e9d8fd; border-left: 4px solid #9f7aea; }
+.horario-slot.concluido { background: #c6f6d5; border-left: 4px solid #48bb78; }
 
 /* Botões de Ação na Tabela (+, - e Editar) */
 .btn-acoes-contribuinte {
@@ -253,6 +260,7 @@ th { background-color: #f8f9fa; }
 }
 .btn-editar { background: #ed8936; padding: 8px 12px; font-size: 14px; }
 .btn-editar:hover { background: #dd6b20; }
+
 /* ================= REGRAS DE IMPRESSÃO (PAISAGEM E RELATÓRIO) ================= */
 @media print {
     @page {
@@ -292,11 +300,11 @@ th { background-color: #f8f9fa; }
         overflow: visible !important;
     }
 
-    /* Evita que o bloco do serviço se quebre no meio; cabe na mesma página se couber, senão vai para a próxima folha */
+    /* Evita que o bloco do serviço se quebre no meio e aumenta o espaço final entre serviços */
     .bloco-servico-impressao {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
-        margin-bottom: 25px !important;
+        margin-bottom: 55px !important;
         display: block;
     }
 

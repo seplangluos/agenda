@@ -306,8 +306,16 @@ async function salvarAgendamentoContribuinte() {
 
     const id = Date.now().toString();
     await dbAgenda.ref('agendamentos/' + id).set({
-        id, contribuinteId: usuarioLogado.uid, contribuinteNome: usuarioLogado.nome, contribuinteCpf: usuarioLogado.cpf,
-        servico, data, horario, processos
+        id, 
+        contribuinteId: usuarioLogado.uid, 
+        contribuinteNome: usuarioLogado.nome, 
+        contribuinteCpf: usuarioLogado.cpf,
+        servico, 
+        data, 
+        horario, 
+        processos, 
+        concluido: false,
+        aguardando: false
     });
     alert("Agendamento Confirmado com sucesso!");
     listarMeusAgendamentos();
@@ -433,13 +441,19 @@ function mudarAba(btn, servicoId) {
     renderTabelaAba(servicoId);
 }
 
+// Alteração: Checkboxes para Aguardando e Atendido
 async function renderTabelaAba(servicoId) {
     const dados = window.dadosAtuaisTabela[servicoId] || [];
     const container = document.getElementById('tabela-container');
     const ehAbaTodos = (servicoId === 'todos');
     const mapa = window.mapaServicosAtual || {};
     
-    let html = `<table><tr><th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th>`;
+    let html = `<table><tr>`;
+    if (!ehAbaTodos) {
+        html += `<th style="width: 60px; text-align: center;" title="Aguardando / Atendido">Status</th>`;
+    }
+    html += `<th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th>`;
+    
     if (ehAbaTodos) {
         html += `<th class="col-contribuinte">Serviço</th>`;
     }
@@ -447,7 +461,26 @@ async function renderTabelaAba(servicoId) {
 
     for(let a of dados) {
         const textoProcessos = await processarListaProcessos(a.processos);
-        html += `<tr><td>${a.horario}</td><td>${a.contribuinteNome}</td>`;
+        const isAguardando = a.aguardando && !a.concluido;
+        const isConcluido = a.concluido;
+        
+        let classLinha = '';
+        if (isConcluido) classLinha = 'linha-concluida';
+        else if (isAguardando) classLinha = 'linha-aguardando';
+        
+        html += `<tr class="${classLinha}">`;
+        
+        if (!ehAbaTodos) {
+            const checkedAguardando = isAguardando ? 'checked' : '';
+            const checkedConcluido = isConcluido ? 'checked' : '';
+            
+            html += `<td style="text-align: center; white-space: nowrap;">
+                <input type="checkbox" title="Aguardando" style="width: 18px; height: 18px; cursor: pointer; margin-right: 5px; accent-color: #9f7aea;" ${checkedAguardando} onchange="mudarStatus('${a.id}', 'aguardando', this.checked, '${servicoId}')">
+                <input type="checkbox" title="Atendido" style="width: 18px; height: 18px; cursor: pointer; accent-color: #48bb78;" ${checkedConcluido} onchange="mudarStatus('${a.id}', 'concluido', this.checked, '${servicoId}')">
+            </td>`;
+        }
+        
+        html += `<td>${a.horario}</td><td>${a.contribuinteNome}</td>`;
         if (ehAbaTodos) {
             html += `<td><strong>${mapa[a.servico] || '--'}</strong></td>`;
         }
@@ -455,6 +488,43 @@ async function renderTabelaAba(servicoId) {
     }
     html += `</table>`;
     container.innerHTML = html;
+}
+
+// Lógica de exclusividade entre Aguardando e Concluído
+async function mudarStatus(agendamentoId, tipo, isChecked, servicoId) {
+    try {
+        let updates = {};
+        
+        if (tipo === 'aguardando') {
+            updates.aguardando = isChecked;
+            if (isChecked) updates.concluido = false; 
+        } else if (tipo === 'concluido') {
+            updates.concluido = isChecked;
+            if (isChecked) updates.aguardando = false; 
+        }
+
+        await dbAgenda.ref('agendamentos/' + agendamentoId).update(updates);
+        
+        // Atualiza a visualização local
+        Object.keys(window.dadosAtuaisTabela).forEach(key => {
+            let agend = window.dadosAtuaisTabela[key].find(item => item.id === agendamentoId);
+            if(agend) {
+                if (tipo === 'aguardando') {
+                    agend.aguardando = isChecked;
+                    if (isChecked) agend.concluido = false;
+                }
+                if (tipo === 'concluido') {
+                    agend.concluido = isChecked;
+                    if (isChecked) agend.aguardando = false;
+                }
+            }
+        });
+        
+        renderTabelaAba(servicoId);
+    } catch (e) {
+        alert("Erro ao atualizar status do agendamento: " + e.message);
+        renderTabelaAba(servicoId); 
+    }
 }
 
 // ==============================================================
@@ -467,7 +537,6 @@ async function imprimirRelatorioGeral() {
 
     container.innerHTML = `<p style="padding: 20px; font-weight: bold;">Gerando relatório completo para impressão...</p>`;
 
-    // 1. Busca todos os serviços cadastrados
     const snapServicos = await dbAgenda.ref('servicos').once('value');
     const servicosCadastrados = [];
     if (snapServicos.exists()) {
@@ -479,7 +548,6 @@ async function imprimirRelatorioGeral() {
         });
     }
 
-    // 2. Busca todos os agendamentos da data
     const snapAgend = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(dataAlvo).once('value');
     const todosAgendamentos = [];
     if (snapAgend.exists()) {
@@ -494,7 +562,6 @@ async function imprimirRelatorioGeral() {
         return;
     }
 
-    // 3. Monta o relatório corrido ignorando serviços sem agendamentos
     let htmlFinal = `
         <div class="no-print" style="margin-bottom: 20px; display: flex; gap: 10px;">
             <button onclick="window.print()" style="background: #38a169; font-weight: bold;">Confirmar Impressão</button>
@@ -506,19 +573,16 @@ async function imprimirRelatorioGeral() {
     let totalServicosComAtendimento = 0;
 
     for (const serv of servicosCadastrados) {
-        // Filtra os agendamentos que pertencem a este serviço
         const agendamentosDoServico = todosAgendamentos.filter(a => 
             a.servico === serv.id || a.servico === serv.nome || a.servicoNome === serv.nome
         );
 
-        // Se o serviço não tem agendamentos no dia, pula e não renderiza na folha
         if (agendamentosDoServico.length === 0) {
             continue;
         }
 
         totalServicosComAtendimento++;
 
-        // Ordena por horário crescente
         agendamentosDoServico.sort((a, b) => a.horario.localeCompare(b.horario));
 
         htmlFinal += `
@@ -556,7 +620,6 @@ async function imprimirRelatorioGeral() {
         `;
     }
 
-    // Caso existam agendamentos soltos sem vínculo exato a um serviço cadastrado
     if (totalServicosComAtendimento === 0) {
         alert("Nenhum agendamento vinculado aos serviços cadastrados nesta data.");
         renderListaServidor();
@@ -566,7 +629,6 @@ async function imprimirRelatorioGeral() {
     htmlFinal += `</div>`;
     container.innerHTML = htmlFinal;
 
-    // Dispara a impressão
     setTimeout(() => {
         window.print();
     }, 400);
@@ -968,7 +1030,9 @@ async function salvarAgendamentoNas() {
         servico, 
         data, 
         horario, 
-        processos
+        processos,
+        concluido: false, 
+        aguardando: false
     });
 
     alert("Agendamento Confirmado com sucesso!");
@@ -1060,9 +1124,12 @@ async function abrirCalendario(dataStr = null) {
                 let primeiroNome = a.contribuinteNome.split(' ')[0]; 
                 let srvNome = mapaServicos[a.servico] || '--';
                 
-                // Exibe: Horário - Contribuinte (Serviço)
+                let statusClass = 'pendente';
+                if (a.concluido) statusClass = 'concluido';
+                else if (a.aguardando) statusClass = 'aguardando';
+                
                 coluna.innerHTML += `
-                    <div class="horario-slot agendado" onclick="abrirDetalhesCalendario('${a.id}', '${srvNome}')">
+                    <div class="horario-slot ${statusClass}" onclick="abrirDetalhesCalendario('${a.id}', '${srvNome}')">
                         <strong>${a.horario}</strong> - ${primeiroNome} <span style="font-size:11px; opacity:0.85;">(${srvNome})</span>
                     </div>
                 `;
