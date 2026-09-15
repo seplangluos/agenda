@@ -21,8 +21,8 @@ const auth = firebase.auth();
 const appProcessos = firebase.initializeApp(firebaseConfigProcessos, "AppProcessos");
 const dbProcessos = appProcessos.database();
 
-let usuarioLogado = null; 
-let roleLogado = null;    
+let usuarioLogado = null;
+let roleLogado = null;
 const diasNomes = {1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta'};
 
 // Variáveis para a tela de contribuintes
@@ -74,12 +74,12 @@ async function loginContribuinte() {
         if (!snap.exists()) throw new Error("CPF não encontrado.");
         const cred = await auth.signInWithEmailAndPassword(snap.val().email, senha);
         const userSnap = await dbAgenda.ref('usuarios/' + cred.user.uid).once('value');
-        
+
         usuarioLogado = { uid: cred.user.uid, ...userSnap.val() };
         roleLogado = 'contribuinte';
-        
+
         nav('screen-dash-contribuinte');
-        listarMeusAgendamentos(); 
+        listarMeusAgendamentos();
     } catch (e) { alert("Erro no login: " + e.message); }
 }
 
@@ -114,7 +114,7 @@ async function processarListaProcessos(stringProcessos) {
     let resultados = [];
     for (let p of inputs) {
         let numBusca = normalizarNumeroProcesso(p);
-        let numExibicao = numBusca.replace(/-/g, "/"); 
+        let numExibicao = numBusca.replace(/-/g, "/");
         try {
             let snap = await dbProcessos.ref('processos/' + numBusca).once('value');
             if (snap.exists()) {
@@ -171,7 +171,7 @@ function obterDataHojeString() {
 async function abrirNovoAgendamento() {
     const area = document.getElementById('area-contribuinte-conteudo');
     area.innerHTML = `<h3>Novo Agendamento</h3><p>Carregando...</p>`;
-    
+
     const snap = await dbAgenda.ref('servicos').once('value');
     let selectHTML = `<select id="novo-agend-servico" onchange="aoMudarServicoContribuinte()"><option value="">Selecione um Serviço...</option>`;
     if (snap.exists()) {
@@ -212,16 +212,16 @@ async function aoMudarServicoContribuinte() {
     document.getElementById('novo-agend-data').value = '';
     document.getElementById('novo-agend-horario').innerHTML = "<option value=''>Selecione uma data acima</option>";
 
-    if(!sId) { 
-        info.innerText = ""; 
+    if(!sId) {
+        info.innerText = "";
         grid.innerHTML = `<p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>`;
-        return; 
+        return;
     }
 
     const snap = await dbAgenda.ref('servicos/' + sId).once('value');
     const servData = snap.val() || {};
     const configDias = (servData.config && servData.config.dias) || {};
-    
+
     const ativos = Object.keys(configDias).filter(k => configDias[k]).map(k => diasNomes[k]);
     info.innerText = ativos.length ? "Dias de atendimento: " + ativos.join(', ') : "Serviço sem dias configurados.";
 
@@ -274,8 +274,8 @@ async function gerarGridDatasDisponiveis(servicoId, gridContainerId, inputDataId
         else if (estaLotado) motivo = "Lotado";
 
         buttonsHTML += `
-            <button type="button" class="date-btn date-btn-${gridContainerId}" 
-                data-date="${dataISO}" 
+            <button type="button" class="date-btn date-btn-${gridContainerId}"
+                data-date="${dataISO}"
                 ${desabilitado ? 'disabled title="' + motivo + '"' : `onclick="selecionarDataGrid('${dataISO}', '${gridContainerId}', '${inputDataId}', '${selectHorarioId}', '${servicoId}')"`}>
                 <strong>${diaSemanaNome}</strong>
                 <span>${dataExibicao}</span>
@@ -306,14 +306,14 @@ async function salvarAgendamentoContribuinte() {
 
     const id = Date.now().toString();
     await dbAgenda.ref('agendamentos/' + id).set({
-        id, 
-        contribuinteId: usuarioLogado.uid, 
-        contribuinteNome: usuarioLogado.nome, 
+        id,
+        contribuinteId: usuarioLogado.uid,
+        contribuinteNome: usuarioLogado.nome,
         contribuinteCpf: usuarioLogado.cpf,
-        servico, 
-        data, 
-        horario, 
-        processos, 
+        servico,
+        data,
+        horario,
+        processos,
         concluido: false,
         aguardando: false
     });
@@ -324,7 +324,7 @@ async function salvarAgendamentoContribuinte() {
 async function listarMeusAgendamentos() {
     const area = document.getElementById('area-contribuinte-conteudo');
     area.innerHTML = `<h3>Meus Agendamentos</h3><p>Buscando histórico completo...</p>`;
-    
+
     try {
         const snap = await dbAgenda.ref('agendamentos').once('value');
         const sSnap = await dbAgenda.ref('servicos').once('value');
@@ -353,8 +353,8 @@ async function listarMeusAgendamentos() {
                 let dataPtBr = a.data.split('-').reverse().join('/');
                 html += `<tr><td>${dataPtBr}</td><td>${a.horario}</td><td>${mapa[a.servico]||'--'}</td><td>${a.processos}</td></tr>`;
             });
-        } else { 
-            html += `<tr><td colspan="4">Você ainda não possui nenhum agendamento.</td></tr>`; 
+        } else {
+            html += `<tr><td colspan="4">Você ainda não possui nenhum agendamento.</td></tr>`;
         }
         html += `</table>`;
         area.innerHTML = `<h3>Meus Agendamentos</h3>${html}`;
@@ -370,11 +370,11 @@ async function carregarListaDiaria() {
     const area = document.getElementById('area-servidor-conteudo');
     const d = new Date();
     const dataAtual = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    
+
     area.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
             <h3 style="margin: 0;">
-                Agendamentos do Dia 
+                Agendamentos do Dia
                 <input type="date" id="filtro-data" value="${dataAtual}" onchange="renderListaServidor()">
             </h3>
             <button onclick="imprimirRelatorioGeral()" style="background: #2b6cb0; font-weight: bold; display: flex; align-items: center; gap: 6px;">
@@ -398,7 +398,7 @@ async function renderListaServidor() {
     if (snap.exists()) {
         snap.forEach(child => { agendamentos.push(child.val()); });
     }
-    
+
     if(agendamentos.length === 0) {
         document.getElementById('tabela-container').innerHTML = "<p>Sem agendamentos para este dia.</p>";
         document.getElementById('tabs-servicos').innerHTML = "";
@@ -430,7 +430,7 @@ async function renderListaServidor() {
         tabsContainer.innerHTML += `<button class="tab" onclick="mudarAba(this, '${srvId}')">${nomeServico}</button>`;
     });
 
-    window.dadosAtuaisTabela = porServico; 
+    window.dadosAtuaisTabela = porServico;
     window.mapaServicosAtual = mapaServicos;
     renderTabelaAba('todos');
 }
@@ -447,13 +447,13 @@ async function renderTabelaAba(servicoId) {
     const container = document.getElementById('tabela-container');
     const ehAbaTodos = (servicoId === 'todos');
     const mapa = window.mapaServicosAtual || {};
-    
+
     let html = `<table><tr>`;
     if (!ehAbaTodos) {
         html += `<th style="width: 60px; text-align: center;" title="Aguardando / Atendido">Status</th>`;
     }
     html += `<th class="col-horario">Horário</th><th class="col-contribuinte">Contribuinte</th>`;
-    
+
     if (ehAbaTodos) {
         html += `<th class="col-contribuinte">Serviço</th>`;
     }
@@ -463,23 +463,23 @@ async function renderTabelaAba(servicoId) {
         const textoProcessos = await processarListaProcessos(a.processos);
         const isAguardando = a.aguardando && !a.concluido;
         const isConcluido = a.concluido;
-        
+
         let classLinha = '';
         if (isConcluido) classLinha = 'linha-concluida';
         else if (isAguardando) classLinha = 'linha-aguardando';
-        
+
         html += `<tr class="${classLinha}">`;
-        
+
         if (!ehAbaTodos) {
             const checkedAguardando = isAguardando ? 'checked' : '';
             const checkedConcluido = isConcluido ? 'checked' : '';
-            
+
             html += `<td style="text-align: center; white-space: nowrap;">
                 <input type="checkbox" title="Aguardando" style="width: 18px; height: 18px; cursor: pointer; margin-right: 5px; accent-color: #9f7aea;" ${checkedAguardando} onchange="mudarStatus('${a.id}', 'aguardando', this.checked, '${servicoId}')">
                 <input type="checkbox" title="Atendido" style="width: 18px; height: 18px; cursor: pointer; accent-color: #48bb78;" ${checkedConcluido} onchange="mudarStatus('${a.id}', 'concluido', this.checked, '${servicoId}')">
             </td>`;
         }
-        
+
         html += `<td>${a.horario}</td><td>${a.contribuinteNome}</td>`;
         if (ehAbaTodos) {
             html += `<td><strong>${mapa[a.servico] || '--'}</strong></td>`;
@@ -494,17 +494,17 @@ async function renderTabelaAba(servicoId) {
 async function mudarStatus(agendamentoId, tipo, isChecked, servicoId) {
     try {
         let updates = {};
-        
+
         if (tipo === 'aguardando') {
             updates.aguardando = isChecked;
-            if (isChecked) updates.concluido = false; 
+            if (isChecked) updates.concluido = false;
         } else if (tipo === 'concluido') {
             updates.concluido = isChecked;
-            if (isChecked) updates.aguardando = false; 
+            if (isChecked) updates.aguardando = false;
         }
 
         await dbAgenda.ref('agendamentos/' + agendamentoId).update(updates);
-        
+
         // Atualiza a visualização local
         Object.keys(window.dadosAtuaisTabela).forEach(key => {
             let agend = window.dadosAtuaisTabela[key].find(item => item.id === agendamentoId);
@@ -519,11 +519,11 @@ async function mudarStatus(agendamentoId, tipo, isChecked, servicoId) {
                 }
             }
         });
-        
+
         renderTabelaAba(servicoId);
     } catch (e) {
         alert("Erro ao atualizar status do agendamento: " + e.message);
-        renderTabelaAba(servicoId); 
+        renderTabelaAba(servicoId);
     }
 }
 
@@ -573,7 +573,7 @@ async function imprimirRelatorioGeral() {
     let totalServicosComAtendimento = 0;
 
     for (const serv of servicosCadastrados) {
-        const agendamentosDoServico = todosAgendamentos.filter(a => 
+        const agendamentosDoServico = todosAgendamentos.filter(a =>
             a.servico === serv.id || a.servico === serv.nome || a.servicoNome === serv.nome
         );
 
@@ -820,7 +820,7 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
 
     try {
         const hojeISO = obterDataHojeString();
-        const snap = await dbAgenda.ref('agendamentos').once('value');
+        const snap = await dbAgenda.ref('agendamentos').orderByChild('contribuinteId').equalTo(uid).once('value');
         const snapServicos = await dbAgenda.ref('servicos').once('value');
         const mapaServicos = {};
         if (snapServicos.exists()) snapServicos.forEach(s => { mapaServicos[s.key] = s.val().nome; });
@@ -829,7 +829,7 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
         if (snap.exists()) {
             snap.forEach(c => {
                 const a = c.val();
-                const pertenceAoUsuario = (a.contribuinteCpf && cpf && a.contribuinteCpf.replace(/\D/g,'') === cpf.replace(/\D/g,'')) || a.contribuinteId === uid;
+                const pertenceAoUsuario = a.contribuinteId === uid;
                 if (pertenceAoUsuario) {
                     agendamentos.push(a);
                 }
@@ -876,9 +876,9 @@ async function abrirGerenciarAgendamentosContribuinte(uid, nome, cpf) {
                     <td>${a.horario}</td>
                     <td><small>${a.processos || 'Nenhum'}</small></td>
                     <td style="text-align:center;">
-                        ${ehFuturoOuHoje 
+                        ${ehFuturoOuHoje
                             ? `<button class="btn-editar-processo" title="Editar Processos" onclick="abrirModalEditarProcessos('${a.id}', '${procEscapado}', '${uid}', '${nomeEscapado}', '${cpfEscapado}')">✏️</button>
-                               <button class="btn-excluir-item" title="Excluir" onclick="excluirAgendamentoServidor('${a.id}', '${uid}', '${nomeEscapado}', '${cpfEscapado}')">Excluir</button>` 
+                               <button class="btn-excluir-item" title="Excluir" onclick="excluirAgendamentoServidor('${a.id}', '${uid}', '${nomeEscapado}', '${cpfEscapado}')">Excluir</button>`
                             : `<span style="color:#a0aec0; font-size:12px;">Finalizado</span>`
                         }
                     </td>
@@ -998,15 +998,15 @@ async function atualizarDiasNas() {
     document.getElementById('nas-data').value = '';
     document.getElementById('nas-horario').innerHTML = "<option value=''>Selecione uma data acima</option>";
 
-    if(!sId) { 
-        info.innerText = ""; 
+    if(!sId) {
+        info.innerText = "";
         grid.innerHTML = `<p style="color:#666; font-size:13px;">Selecione um serviço primeiro.</p>`;
-        return; 
+        return;
     }
 
     const snap = await dbAgenda.ref('servicos/' + sId + '/config/dias').once('value');
     const configDias = snap.val() || {};
-    
+
     const ativos = Object.keys(configDias).filter(k => configDias[k]).map(k => diasNomes[k]);
     info.innerText = ativos.length ? "Dias de atendimento: " + ativos.join(', ') : "Serviço sem dias configurados.";
 
@@ -1023,15 +1023,15 @@ async function salvarAgendamentoNas() {
 
     const id = Date.now().toString();
     await dbAgenda.ref('agendamentos/' + id).set({
-        id, 
+        id,
         contribuinteId: document.getElementById('nas-uid').value,
         contribuinteNome: document.getElementById('nas-nome').value,
         contribuinteCpf: document.getElementById('nas-cpf').value,
-        servico, 
-        data, 
-        horario, 
+        servico,
+        data,
+        horario,
         processos,
-        concluido: false, 
+        concluido: false,
         aguardando: false
     });
 
@@ -1044,7 +1044,7 @@ async function salvarAgendamentoNas() {
 // ==========================================
 async function abrirCalendario(dataStr = null) {
     const area = document.getElementById('area-servidor-conteudo');
-    
+
     let baseDate;
     if (dataStr) {
         const [y, m, d] = dataStr.split('-');
@@ -1054,8 +1054,8 @@ async function abrirCalendario(dataStr = null) {
         baseDate.setHours(0,0,0,0);
     }
 
-    const diaDaSemana = baseDate.getDay(); 
-    const distSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana; 
+    const diaDaSemana = baseDate.getDay();
+    const distSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
     const segundaFeira = new Date(baseDate);
     segundaFeira.setDate(baseDate.getDate() + distSegunda);
 
@@ -1078,12 +1078,12 @@ async function abrirCalendario(dataStr = null) {
     for(let i = 0; i < 5; i++) {
         let dataDia = new Date(segundaFeira);
         dataDia.setDate(segundaFeira.getDate() + i);
-        
+
         let dAno = dataDia.getFullYear();
         let dMes = String(dataDia.getMonth()+1).padStart(2,'0');
         let dDia = String(dataDia.getDate()).padStart(2,'0');
         let dataISO = `${dAno}-${dMes}-${dDia}`;
-        
+
         datasDaSemana.push(dataISO);
         let dataPtBr = `${dDia}/${dMes}/${dAno}`;
 
@@ -1101,33 +1101,33 @@ async function abrirCalendario(dataStr = null) {
     const mapaServicos = {};
     if(snapServ.exists()) snapServ.forEach(c => { mapaServicos[c.key] = c.val().nome; });
 
-    window.agendamentosCalendarioCache = {}; 
+    window.agendamentosCalendarioCache = {};
 
     for (let data of datasDaSemana) {
         const snap = await dbAgenda.ref('agendamentos').orderByChild('data').equalTo(data).once('value');
         let agendDia = [];
-        
+
         if (snap.exists()) {
-            snap.forEach(child => { 
+            snap.forEach(child => {
                 agendDia.push(child.val());
                 window.agendamentosCalendarioCache[child.key] = child.val();
             });
         }
         agendDia.sort((a, b) => a.horario.localeCompare(b.horario));
-        
+
         const coluna = document.getElementById(`coluna-${data}`);
         if(agendDia.length === 0) {
             coluna.innerHTML = "<p style='font-size:12px; text-align:center; color:#999;'>Sem agendamentos</p>";
         } else {
             coluna.innerHTML = "";
             agendDia.forEach(a => {
-                let primeiroNome = a.contribuinteNome.split(' ')[0]; 
+                let primeiroNome = a.contribuinteNome.split(' ')[0];
                 let srvNome = mapaServicos[a.servico] || '--';
-                
+
                 let statusClass = 'pendente';
                 if (a.concluido) statusClass = 'concluido';
                 else if (a.aguardando) statusClass = 'aguardando';
-                
+
                 coluna.innerHTML += `
                     <div class="horario-slot ${statusClass}" onclick="abrirDetalhesCalendario('${a.id}', '${srvNome}')">
                         <strong>${a.horario}</strong> - ${primeiroNome} <span style="font-size:11px; opacity:0.85;">(${srvNome})</span>
@@ -1171,7 +1171,7 @@ function abrirCadastroServicos() {
 async function salvarNovoServico() {
     const nome = document.getElementById('novo-servico-nome').value;
     if(!nome) return;
-    const key = dbAgenda.ref('servicos').push().key; 
+    const key = dbAgenda.ref('servicos').push().key;
     await dbAgenda.ref('servicos/' + key).set({ nome });
     document.getElementById('novo-servico-nome').value = '';
     carregarListaServicos();
@@ -1231,7 +1231,7 @@ async function abrirModalServico(id, nome) {
 async function salvarConfigServico() {
     const id = document.getElementById('modal-servico-id').value;
     const config = { dias: {}, horarios: {} };
-    
+
     document.querySelectorAll('.chk-dia').forEach(chk => { config.dias[chk.value] = chk.checked; });
     document.querySelectorAll('.chk-hora').forEach(chk => { config.horarios[chk.value] = chk.checked; });
 
