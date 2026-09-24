@@ -640,6 +640,21 @@ async function imprimirRelatorioGeral() {
 async function abrirPesquisa() {
     const area = document.getElementById('area-servidor-conteudo');
     area.innerHTML = `
+        <!-- =====================================================
+             MURAL DE AVISOS - EDITE OS AVISOS AQUI QUANDO NECESSÁRIO
+             Para adicionar um aviso, insira abaixo do título, por exemplo:
+             <p>O serviço X estará indisponível no dia 10/10.</p>
+             ===================================================== -->
+        <div class="mural-avisos">
+            <div class="mural-avisos-titulo">ATENÇÃO</div>
+             <p>ANA LUIZA, RENATA E GABRIELLA MOURÃO NÃO ESTARÃO NA SEMANA DO DIA 13/10 À 16/10</p>
+             <p>FREDERICO FÉRIAS: 13/10 À 22/10</p>
+             <p>MAYSA ATESTADO: 11/09 A 11/10; FÉRIAS DE 13/10 A 16/10</p>
+             <p>MARA FÉRIAS 06/10 A 30/10</p>
+             <p>NÃO AGENDAR NESSAS DATAS PARA ESSES ANALISTAS!!!</p>
+
+        </div>
+
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:15px; gap:10px;">
             <h3 style="margin:0;">Gestão de Contribuintes</h3>
             <button onclick="abrirModalCadastroContribuinteServidor()" style="background:#48bb78;">+ Cadastrar Novo Contribuinte</button>

@@ -261,6 +261,34 @@ th { background-color: #f8f9fa; }
 .btn-editar { background: #ed8936; padding: 8px 12px; font-size: 14px; }
 .btn-editar:hover { background: #dd6b20; }
 
+/* Mural de Avisos - Painel do Servidor > Contribuintes */
+.mural-avisos {
+    width: 100%;
+    box-sizing: border-box;
+    background: #fff1f1;
+    border: 3px solid #c53030;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 8px rgba(197, 48, 48, 0.22);
+}
+
+.mural-avisos-titulo {
+    color: #b91c1c;
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+    letter-spacing: 0.8px;
+}
+
+.mural-avisos p {
+    margin: 12px 0 0;
+    color: #991b1b;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+}
+
 /* ================= REGRAS DE IMPRESSÃO (PAISAGEM E RELATÓRIO) ================= */
 @media print {
     @page {
