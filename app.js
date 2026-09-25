@@ -648,6 +648,7 @@ async function abrirPesquisa() {
         <div class="mural-avisos">
             <div class="mural-avisos-titulo">ATENÇÃO</div>
              <p>ANA LUIZA, RENATA E GABRIELLA MOURÃO NÃO ESTARÃO NA SEMANA DO DIA 13/10 À 16/10</p>
+             <p>JULIANA FÉRIAS: 28/09 À 09/10</p>
              <p>FREDERICO FÉRIAS: 13/10 À 22/10</p>
              <p>MAYSA ATESTADO: 11/09 A 11/10; FÉRIAS DE 13/10 A 16/10</p>
              <p>MARA FÉRIAS 06/10 A 30/10</p>
